@@ -61,13 +61,18 @@ body{margin:0;font-family:var(--f-body);font-size:16px;line-height:1.5;color:var
 
 .list{display:flex;flex-direction:column;gap:22px;margin:0;padding:0;list-style:none}
 .sheet{position:relative;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 var(--ink);
-  padding:18px 18px 16px;display:grid;grid-template-columns:76px 1fr;gap:16px;
+  padding:18px 18px 16px;display:grid;grid-template-columns:108px 1fr;gap:18px;
   clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%)}
 .sheet::after{content:"";position:absolute;top:-2px;right:-2px;width:30px;height:30px;background:linear-gradient(225deg,var(--lilac) 50%,var(--pink-soft) 50%);border-left:2px solid var(--ink);border-bottom:2px solid var(--ink)}
 .list li:nth-child(odd) .sheet{transform:rotate(-.4deg)} .list li:nth-child(even) .sheet{transform:rotate(.4deg)}
-.doc{width:76px;height:96px;border:2px solid var(--ink);background:var(--pink-soft);position:relative;display:flex;flex-direction:column;justify-content:flex-end;
+.doc{width:108px;height:135px;border:2px solid var(--ink);background:var(--pink-soft);position:relative;display:flex;flex-direction:column;justify-content:flex-end;
   align-items:center;padding-bottom:10px;font-family:var(--f-display);font-size:20px;color:var(--ink)}
 .doc::before{content:"";position:absolute;inset:12px 10px auto;height:30px;background:repeating-linear-gradient(var(--ink) 0 2px,transparent 2px 8px);opacity:.35}
+.doc canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:var(--paper);opacity:0;transition:opacity .3s}
+.doc.has-thumb canvas{opacity:1}
+.doc.has-thumb{box-shadow:3px 3px 0 var(--pink)}
+a.doc{text-decoration:none;color:var(--ink)}
+a.doc:focus-visible{outline:3px solid var(--lilac-deep);outline-offset:2px}
 .doc small{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em}
 .sheet:nth-child(1) .doc{background:var(--pink-soft)}
 .list li:nth-child(3n+2) .doc{background:var(--lilac)}
@@ -90,7 +95,7 @@ body{margin:0;font-family:var(--f-body);font-size:16px;line-height:1.5;color:var
 .empty .p{color:var(--pink)}
 footer{text-align:center;font-family:var(--f-mono);font-size:12px;color:var(--ink-soft)}
 footer .h{color:var(--pink)}
-@media (max-width:480px){.sheet{grid-template-columns:1fr;padding-top:16px}.doc{width:64px;height:80px;font-size:17px}}
+@media (max-width:480px){.sheet{grid-template-columns:1fr;padding-top:16px}.doc{width:88px;height:110px;font-size:17px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -118,14 +123,19 @@ footer .h{color:var(--pink)}
   <footer>@deployada <span class="h">♥</span> podcast · backend · devops · IA</footer>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
 /*
-  ===== COMO ADICIONAR UM MATERIAL =====
-  1) Coloque o PDF na pasta "pdfs/" do repositório.
-  2) Copie um bloco abaixo e preencha. O mais novo fica em cima automaticamente (pela data).
-  Campos: release, sprint, titulo, descricao, data (AAAA-MM-DD), pdf (caminho), paginas (opcional),
-          tags (lista), episodio (link do episódio no Spotify ou no site do podcast, opcional).
+  ===== COMO FUNCIONA =====
+  1) Suba o PDF na pasta "pdfs/" do GitHub. Pronto: ele já aparece no site
+     (a página lê a pasta sozinha e mostra a capa do PDF como miniatura).
+     Use "Sprint" + número no nome do arquivo, ex.: Deployada-Sprint03-material.pdf
+     (e "Release2" no nome quando mudar de release, ex.: Deployada-Release2-Sprint01-material.pdf).
+  2) Opcional: cadastre o episódio abaixo para o card ganhar título, descrição, tags e link.
+     O cadastro é ligado ao PDF pelo nome do arquivo em "pdf".
 */
+const GITHUB = { usuario: "gabrielacarvalho", repositorio: "deployada-materiais", branch: "main", pasta: "pdfs" };
+
 const MATERIAIS = [
   {
     release: 1, sprint: 2,
@@ -145,21 +155,60 @@ const MATERIAIS = [
   const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const pad=n=>String(n).padStart(2,'0');
   const fmtData=d=>{if(!d)return'';const [y,m,dd]=d.split('-');return `${dd}/${m}/${y}`};
-  const norm=s=>String(s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const norm=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const base=p=>String(p||'').split('/').pop().toLowerCase();
   const ico={
     read:'<svg viewBox="0 0 24 24"><path d="M12 5C6.5 5 2.7 9.4 1.5 12c1.2 2.6 5 7 10.5 7s9.3-4.4 10.5-7C21.3 9.4 17.5 5 12 5zm0 11.5A4.5 4.5 0 1112 7.5a4.5 4.5 0 010 9zm0-7a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/></svg>',
     down:'<svg viewBox="0 0 24 24"><path d="M11 3h2v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6zM4 19h16v2H4z"/></svg>',
     play:'<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>'
   };
-  const sorted=[...MATERIAIS].sort((a,b)=>(b.data||'').localeCompare(a.data||'')||(b.release-a.release)||(b.sprint-a.sprint));
+
+  // Lê release/sprint do nome do arquivo: "Deployada-Release2-Sprint03-material.pdf"
+  function fromFile(name){
+    const r=name.match(/release[\s_-]*(\d+)/i), s=name.match(/sprint[\s_-]*(\d+)/i);
+    return { release: r?+r[1]:1, sprint: s?+s[1]:null, pdf: `${GITHUB.pasta}/${name}`, auto:true };
+  }
+
+  async function listarPasta(){
+    const key='pdfs-cache-v1';
+    try{const c=JSON.parse(sessionStorage.getItem(key)||'null'); if(c&&Date.now()-c.t<5*60e3) return c.files}catch(e){}
+    const url=`https://api.github.com/repos/${GITHUB.usuario}/${GITHUB.repositorio}/contents/${GITHUB.pasta}?ref=${GITHUB.branch}`;
+    const res=await fetch(url,{headers:{Accept:'application/vnd.github+json'}});
+    if(!res.ok) throw new Error('github '+res.status);
+    const files=(await res.json()).filter(f=>f.type==='file'&&/\.pdf$/i.test(f.name)).map(f=>f.name);
+    try{sessionStorage.setItem(key,JSON.stringify({t:Date.now(),files}))}catch(e){}
+    return files;
+  }
+
+  function juntar(files){
+    const out=[], usados=new Set();
+    for(const name of files){
+      const auto=fromFile(name);
+      const cad=MATERIAIS.find(m=>base(m.pdf)===name.toLowerCase());
+      if(cad){usados.add(cad); out.push({...auto,...cad,auto:false});}
+      else out.push(auto);
+    }
+    // cadastros cujo PDF não apareceu na pasta (ex.: GitHub fora do ar) continuam visíveis
+    MATERIAIS.forEach(m=>{if(!usados.has(m)&&!files.length) out.push(m)});
+    return out;
+  }
+
+  let itens=[...MATERIAIS];
+  const ordenar=a=>[...a].sort((x,y)=>(y.release||0)-(x.release||0)||(y.sprint||0)-(x.sprint||0)||(y.data||'').localeCompare(x.data||''));
+
   function item(m){
-    const nome=`release-${m.release}-sprint-${pad(m.sprint)}.pdf`;
+    const sp=m.sprint!=null?pad(m.sprint):'';
+    const rotulo=sp?`Release ${m.release} · Sprint ${sp}`:'Material de apoio';
+    const titulo=m.titulo||(sp?`Sprint ${sp}`:base(m.pdf).replace(/\.pdf$/,''));
+    const desc=m.descricao||'Material de apoio do episódio. Abra o PDF pra ler junto com o podcast.';
+    const nome=base(m.pdf);
     return `<li><article class="sheet">
-      <div class="doc" aria-hidden="true"><small>R${esc(m.release)}·S${pad(m.sprint)}</small>PDF</div>
+      <a class="doc" href="${esc(m.pdf)}" target="_blank" rel="noopener" aria-label="Abrir PDF de ${esc(titulo)}" data-pdf="${esc(m.pdf)}">
+        <small>${sp?`R${esc(m.release)}·S${sp}`:'DOC'}</small>PDF<canvas aria-hidden="true"></canvas></a>
       <div class="info">
-        <div class="ep">Release ${esc(m.release)} · Sprint ${pad(m.sprint)}</div>
-        <h2>${esc(m.titulo)}</h2>
-        <p>${esc(m.descricao)}</p>
+        <div class="ep">${esc(rotulo)}</div>
+        <h2>${esc(titulo)}</h2>
+        <p>${esc(desc)}</p>
         <div class="meta">${m.data?`<span>publicado em ${fmtData(m.data)}</span>`:''}${m.paginas?`<span>${esc(m.paginas)} páginas</span>`:''}</div>
         ${(m.tags||[]).length?`<ul class="tags">${m.tags.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
         <div class="actions">
@@ -169,15 +218,39 @@ const MATERIAIS = [
         </div>
       </div></article></li>`;
   }
+
+  // Capa do PDF como miniatura (página 1)
+  const thumbs=new Map();
+  if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  async function capa(el){
+    if(!window.pdfjsLib) return;
+    const src=el.dataset.pdf, canvas=el.querySelector('canvas');
+    try{
+      let data=thumbs.get(src);
+      if(!data){
+        const pdf=await pdfjsLib.getDocument({url:src}).promise;
+        const page=await pdf.getPage(1);
+        const v=page.getViewport({scale:1}), scale=(el.clientWidth*2)/v.width, vp=page.getViewport({scale});
+        const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
+        await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+        data=c; thumbs.set(src,c);
+      }
+      canvas.width=data.width; canvas.height=data.height; canvas.getContext('2d').drawImage(data,0,0);
+      el.classList.add('has-thumb');
+    }catch(e){/* sem miniatura: fica o ícone */}
+  }
+
   function render(){
     const t=norm(q.value.trim());
-    const res=sorted.filter(m=>!t||norm([m.titulo,m.descricao,(m.tags||[]).join(' '),`release ${m.release} sprint ${m.sprint}`].join(' ')).includes(t));
+    const res=ordenar(itens).filter(m=>!t||norm([m.titulo,m.descricao,(m.tags||[]).join(' '),base(m.pdf),`release ${m.release} sprint ${m.sprint}`].join(' ')).includes(t));
     list.innerHTML=res.map(item).join('');
     empty.hidden=res.length>0; term.textContent=q.value.trim();
     count.textContent=`${res.length} ${res.length===1?'material':'materiais'}${t?' encontrados':''}`;
+    list.querySelectorAll('.doc[data-pdf]').forEach(capa);
   }
   q.addEventListener('input',render);
   render();
+  listarPasta().then(files=>{ if(files.length){ itens=juntar(files); render(); } }).catch(()=>{/* usa só a lista cadastrada */});
 })();
 </script>
 
