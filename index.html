@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#c9b8f5">
+<meta name="theme-color" content="#ffb8d9">
 <title>Materiais Deployada</title>
 <meta name="description" content="PDFs de apoio de cada episódio do podcast Deployada.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,7 +14,8 @@
 :root{
   --lilac:#c9b8f5; --lilac-deep:#7b5cd6; --pink:#ff5fa8; --pink-soft:#ffc6e0;
   --paper:#fffafd; --ink:#24133f; --ink-soft:#5a4a78; --term:#1d1430; --term-fg:#f3e9ff;
-  --grid:rgba(255,255,255,.38);
+  --bg:#ffb8d9;        /* fundo rosa */
+  --grid:rgba(255,255,255,.45);
   --f-display:"Bowlby One","Arial Black",Impact,sans-serif;
   --f-serif:"Abril Fatface",Georgia,"Times New Roman",serif;
   --f-type:"Special Elite","Courier New",monospace;
@@ -25,11 +26,11 @@
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{background:var(--lilac)}
+html{background:var(--bg)}
 body{margin:0;font-family:var(--f-body);font-size:16px;line-height:1.5;color:var(--ink);
-  background-color:var(--lilac);
+  background-color:var(--bg);
   background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),
-    radial-gradient(circle at 12% 6%,rgba(255,95,168,.35),transparent 40%),radial-gradient(circle at 90% 70%,rgba(255,255,255,.5),transparent 45%);
+    radial-gradient(circle at 12% 6%,rgba(255,95,168,.45),transparent 42%),radial-gradient(circle at 90% 70%,rgba(255,255,255,.55),transparent 45%);
   background-size:22px 22px,22px 22px,100% 100%,100% 100%;
   padding-inline:16px;padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(48px + env(safe-area-inset-bottom,0px));overflow-x:hidden}
 .wrap{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
@@ -63,7 +64,7 @@ body{margin:0;font-family:var(--f-body);font-size:16px;line-height:1.5;color:var
 .sheet{position:relative;background:var(--paper);border:2px solid var(--ink);box-shadow:6px 6px 0 var(--ink);
   padding:18px 18px 16px;display:grid;grid-template-columns:108px 1fr;gap:18px;
   clip-path:polygon(0 0,calc(100% - 28px) 0,100% 28px,100% 100%,0 100%)}
-.sheet::after{content:"";position:absolute;top:-2px;right:-2px;width:30px;height:30px;background:linear-gradient(225deg,var(--lilac) 50%,var(--pink-soft) 50%);border-left:2px solid var(--ink);border-bottom:2px solid var(--ink)}
+.sheet::after{content:"";position:absolute;top:-2px;right:-2px;width:30px;height:30px;background:linear-gradient(225deg,var(--bg) 50%,var(--lilac) 50%);border-left:2px solid var(--ink);border-bottom:2px solid var(--ink)}
 .list li:nth-child(odd) .sheet{transform:rotate(-.4deg)} .list li:nth-child(even) .sheet{transform:rotate(.4deg)}
 .doc{width:108px;height:135px;border:2px solid var(--ink);background:var(--pink-soft);position:relative;display:flex;flex-direction:column;justify-content:flex-end;
   align-items:center;padding-bottom:10px;font-family:var(--f-display);font-size:20px;color:var(--ink)}
