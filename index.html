@@ -128,14 +128,20 @@ footer .h{color:var(--pink)}
 <script>
 /*
   ===== COMO FUNCIONA =====
-  1) Suba o PDF na pasta "pdfs/" do GitHub. Pronto: ele já aparece no site
-     (a página lê a pasta sozinha e mostra a capa do PDF como miniatura).
-     Use "Sprint" + número no nome do arquivo, ex.: Deployada-Sprint03-material.pdf
-     (e "Release2" no nome quando mudar de release, ex.: Deployada-Release2-Sprint01-material.pdf).
-  2) Opcional: cadastre o episódio abaixo para o card ganhar título, descrição, tags e link.
-     O cadastro é ligado ao PDF pelo nome do arquivo em "pdf".
+  É só subir o PDF na pasta "pdfs/" do GitHub. O resto o site faz sozinho:
+  - lê o número da sprint no nome do arquivo, ex.: Deployada-Sprint03-material.pdf
+    (na Release 2: Deployada-Release2-Sprint01-material.pdf);
+  - busca no feed do podcast o episódio com o mesmo número e pega título, descrição,
+    data e link do episódio;
+  - conta as páginas e mostra a capa do próprio PDF;
+  - escolhe as tags pelos assuntos que aparecem no título e na descrição.
+  Se quiser trocar algum texto, cadastre o episódio na lista MATERIAIS abaixo:
+  o que estiver cadastrado vale mais do que o que vem do feed.
 */
 const GITHUB = { usuario: "gabrielacarvalho", repositorio: "deployada-materiais", branch: "main", pasta: "pdfs" };
+const FEED = "https://anchor.fm/s/1180ca0e4/podcast/rss";
+// Assuntos que viram tag quando aparecem no título ou na descrição do episódio.
+const ASSUNTOS = ["API","HTTP","status codes","Postman","Git","GitHub","pull request","Docker","containers","Kubernetes","CI/CD","GitOps","observabilidade","IA","backend","devops","carreira"];
 
 const MATERIAIS = [
   {
@@ -181,13 +187,42 @@ const MATERIAIS = [
     return files;
   }
 
-  function juntar(files){
+  // Lê o feed do podcast e devolve os episódios com release e sprint
+  async function lerFeed(){
+    const key='feed-cache-v1';
+    try{const c=JSON.parse(sessionStorage.getItem(key)||'null'); if(c&&Date.now()-c.t<5*60e3) return c.eps}catch(e){}
+    const res=await fetch(FEED+'?t='+Date.now(),{cache:'no-store'});
+    if(!res.ok) throw new Error('feed '+res.status);
+    const doc=new DOMParser().parseFromString(await res.text(),'text/xml');
+    const eps=[...doc.getElementsByTagName('item')].map(it=>{
+      const tx=n=>(it.getElementsByTagName(n)[0]||{}).textContent||'';
+      const m=tx('title').match(/Release\s*(\d+)\D+Sprint\s*(\d+)\s*[:\-–]?\s*(.*)/i);
+      if(!m) return null;
+      const div=document.createElement('div'); div.innerHTML=tx('description');
+      let d=(div.textContent||'').replace(/https?:\/\/\S+/g,'').replace(/\s+/g,' ').trim();
+      if(d.length>240) d=d.slice(0,237).replace(/\s\S*$/,'')+'…';
+      const pub=new Date(tx('pubDate'));
+      const data=isNaN(pub)?'':`${pub.getFullYear()}-${pad(pub.getMonth()+1)}-${pad(pub.getDate())}`;
+      return { release:+m[1], sprint:+m[2], titulo:(m[3]||'').trim(), descricao:d, data, episodio:tx('link') };
+    }).filter(Boolean);
+    try{sessionStorage.setItem(key,JSON.stringify({t:Date.now(),eps}))}catch(e){}
+    return eps;
+  }
+
+  function tagsDe(texto){
+    const n=norm(texto);
+    return ASSUNTOS.filter(a=>new RegExp('(^|[^a-z0-9])'+norm(a).replace(/[.*+?^${}()|[\]\\/]/g,'\\$&')+'($|[^a-z0-9])').test(n)).slice(0,4);
+  }
+
+  function juntar(files, eps){
     const out=[], usados=new Set();
     for(const name of files){
       const auto=fromFile(name);
+      const ep=auto.sprint!=null?eps.find(e=>e.release===auto.release&&e.sprint===auto.sprint):null;
+      const doFeed=ep?{...ep,tags:tagsDe(ep.titulo+' '+ep.descricao)}:{};
       const cad=MATERIAIS.find(m=>base(m.pdf)===name.toLowerCase());
-      if(cad){usados.add(cad); out.push({...auto,...cad,auto:false});}
-      else out.push(auto);
+      if(cad) usados.add(cad);
+      out.push({...auto,...doFeed,...(cad||{}),auto:!cad&&!ep});
     }
     // cadastros cujo PDF não apareceu na pasta (ex.: GitHub fora do ar) continuam visíveis
     MATERIAIS.forEach(m=>{if(!usados.has(m)&&!files.length) out.push(m)});
@@ -210,7 +245,7 @@ const MATERIAIS = [
         <div class="ep">${esc(rotulo)}</div>
         <h2>${esc(titulo)}</h2>
         <p>${esc(desc)}</p>
-        <div class="meta">${m.data?`<span>publicado em ${fmtData(m.data)}</span>`:''}${m.paginas?`<span>${esc(m.paginas)} páginas</span>`:''}</div>
+        <div class="meta">${m.data?`<span>publicado em ${fmtData(m.data)}</span>`:''}${m.paginas?`<span class="pg">${esc(m.paginas)} páginas</span>`:''}</div>
         ${(m.tags||[]).length?`<ul class="tags">${m.tags.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`:''}
         <div class="actions">
           <a class="btn main" href="${esc(m.pdf)}" target="_blank" rel="noopener">${ico.read}Ler PDF</a>
@@ -221,7 +256,7 @@ const MATERIAIS = [
   }
 
   // Capa do PDF como miniatura (página 1)
-  const thumbs=new Map();
+  const thumbs=new Map(), paginasPdf=new Map();
   if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   async function capa(el){
     if(!window.pdfjsLib) return;
@@ -230,6 +265,7 @@ const MATERIAIS = [
       let data=thumbs.get(src);
       if(!data){
         const pdf=await pdfjsLib.getDocument({url:src}).promise;
+        paginasPdf.set(src,pdf.numPages);
         const page=await pdf.getPage(1);
         const v=page.getViewport({scale:1}), scale=(el.clientWidth*2)/v.width, vp=page.getViewport({scale});
         const c=document.createElement('canvas'); c.width=vp.width; c.height=vp.height;
@@ -238,6 +274,8 @@ const MATERIAIS = [
       }
       canvas.width=data.width; canvas.height=data.height; canvas.getContext('2d').drawImage(data,0,0);
       el.classList.add('has-thumb');
+      const meta=el.closest('.sheet')?.querySelector('.meta'), n=paginasPdf.get(src);
+      if(meta&&n&&!meta.querySelector('.pg')){const s=document.createElement('span');s.className='pg';s.textContent=n+' páginas';meta.appendChild(s);}
     }catch(e){/* sem miniatura: fica o ícone */}
   }
 
@@ -251,7 +289,9 @@ const MATERIAIS = [
   }
   q.addEventListener('input',render);
   render();
-  listarPasta().then(files=>{ if(files.length){ itens=juntar(files); render(); } }).catch(()=>{/* usa só a lista cadastrada */});
+  Promise.all([listarPasta(), lerFeed().catch(()=>[])])
+    .then(([files,eps])=>{ if(files.length){ itens=juntar(files,eps); render(); } })
+    .catch(()=>{/* usa só a lista cadastrada */});
 })();
 </script>
 
